@@ -5,7 +5,8 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 import { RiTaskLine, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 import { Spinner } from '../components/common';
-
+import {GoogleLogin} from '@react-oauth/google';
+ 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -111,15 +112,31 @@ export default function LoginPage() {
           <p className="text-gray-500 dark:text-gray-400 mb-8">Sign in to your account</p>
 
           {/* Google Sign-In */}
-          <div id="google-btn" className="mb-4" />
-          {!window.google && (
-            <div className="text-xs text-gray-400 text-center mb-4">Google Sign-In requires VITE_GOOGLE_CLIENT_ID</div>
-          )}
+          <div className="mb-4 flex justify-center">
+            <GoogleLogin
+              onSuccess={async (credentialResponse) => {
+                try {
+                  setLoading(true);
 
-          <div className="flex items-center gap-3 mb-6">
-            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-            <span className="text-xs text-gray-400">or continue with email</span>
-            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                  const { data } = await api.post('/auth/google', {
+                    credential: credentialResponse.credential,
+                  });
+
+                  login(data.user, data.token);
+                  toast.success(`Welcome, ${data.user.name}!`);
+                  navigate('/dashboard');
+
+                } catch (err) {
+                  toast.error(err.response?.data?.message || "Google login failed");
+                } finally {
+                setLoading(false);
+              }
+            }}
+            onError={() => toast.error("Google Sign-In failed")}
+            theme="outline"
+            size="large"
+            shape="pill"
+            />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
