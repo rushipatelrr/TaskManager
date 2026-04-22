@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { taskService } from '../services/taskService';
+import { taskService, adminService } from '../services/taskService';
 import { StatCard, Spinner, SkeletonCard } from '../components/common';
 import { format } from 'date-fns';
-import { RiTrophyLine, RiStarLine } from 'react-icons/ri';
+import { RiTrophyLine, RiStarLine, RiGroupLine, RiShieldLine, RiUserFollowLine, RiUserUnfollowLine } from 'react-icons/ri';
 
 const priorityColors = { low: 'bg-gray-400', medium: 'bg-blue-500', high: 'bg-orange-500', urgent: 'bg-red-500' };
 
@@ -13,23 +13,32 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [recentTasks, setRecentTasks] = useState([]);
 
+  const isAdmin = user?.role === 'admin';
+
   useEffect(() => {
     const load = async () => {
       try {
-        const [statsRes, tasksRes] = await Promise.all([
-          taskService.getStats(),
-          taskService.getTasks({ limit: 5, page: 1 })
-        ]);
-        setStats(statsRes.data);
-        setRecentTasks(tasksRes.data.tasks);
+        if (isAdmin) {
+          const [adminStatsRes, tasksRes] = await Promise.all([
+            adminService.getStats(),
+            taskService.getTasks({ limit: 5, page: 1 })
+          ]);
+          setStats(adminStatsRes.data);
+          setRecentTasks(tasksRes.data.tasks);
+        } else {
+          const [statsRes, tasksRes] = await Promise.all([
+            taskService.getStats(),
+            taskService.getTasks({ limit: 5, page: 1 })
+          ]);
+          setStats(statsRes.data);
+          setRecentTasks(tasksRes.data.tasks);
+        }
       } catch (e) {} finally {
         setLoading(false);
       }
     };
     load();
-  }, []);
-
-  const isAdmin = user?.role === 'admin';
+  }, [isAdmin]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto animate-fade-in">
@@ -134,12 +143,51 @@ function UserDashboard({ stats, user, recentTasks }) {
 function AdminDashboard({ stats }) {
   return (
     <>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      {/* Task Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard title="Total Tasks" value={stats?.stats?.totalTasks} icon="📋" color="blue" />
         <StatCard title="Completed" value={stats?.stats?.completedTasks} icon="✅" color="green" />
         <StatCard title="Pending" value={stats?.stats?.pendingTasks} icon="⏳" color="amber" />
+        <StatCard title="Completion Rate" value={stats?.stats?.totalTasks > 0 ? `${Math.round((stats.stats.completedTasks / stats.stats.totalTasks) * 100)}%` : '0%'} icon="📊" color="purple" />
       </div>
 
+      {/* User Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center">
+            <RiGroupLine className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats?.stats?.totalUsers ?? '—'}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Total Users</p>
+          </div>
+        </div>
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center">
+            <RiShieldLine className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">{stats?.stats?.totalAdmins ?? '—'}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Admins</p>
+          </div>
+        </div>
+        <div className="card p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center">
+            <RiUserFollowLine className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">
+              {stats?.stats?.activeUsers ?? '—'}
+              {stats?.stats?.inactiveUsers > 0 && (
+                <span className="text-xs font-normal text-red-400 ml-1.5">({stats.stats.inactiveUsers} inactive)</span>
+              )}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Active Users</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Leaderboard */}
       <div className="card p-6">
         <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <RiTrophyLine className="w-5 h-5 text-amber-500" />
@@ -156,7 +204,10 @@ function AdminDashboard({ stats }) {
                 : <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{u.name[0]}</div>
               }
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{u.name}</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                  {u.name}
+                  {u.role === 'admin' && <RiShieldLine className="w-3 h-3 text-amber-500 inline ml-1" />}
+                </p>
                 <p className="text-xs text-gray-400">{u.email}</p>
               </div>
               <span className="text-sm font-bold text-brand-600 dark:text-brand-400 flex items-center gap-1">

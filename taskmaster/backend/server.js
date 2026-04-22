@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
+const seedAdmin = require('./config/seedAdmin');
 const errorHandler = require('./middleware/errorHandler');
 const { startRecurringTaskCron } = require('./cron/recurringTasks');
 
@@ -9,8 +10,8 @@ dotenv.config();
 
 const app = express();
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB & seed default admin
+connectDB().then(() => seedAdmin());
 
 // CORS
 app.use(cors({
@@ -28,6 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => {

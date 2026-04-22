@@ -118,6 +118,19 @@ const createTask = async (req, res, next) => {
       assignees = [req.user._id];
     }
 
+    // RBAC: Non-admin users cannot assign tasks to admin users
+    if (req.user.role !== 'admin' && assignees.length > 0) {
+      const assignedUsers = await User.find({ _id: { $in: assignees } }).select('role name');
+      const adminAssignees = assignedUsers.filter(u => u.role === 'admin');
+      if (adminAssignees.length > 0) {
+        const adminNames = adminAssignees.map(u => u.name).join(', ');
+        return res.status(403).json({
+          success: false,
+          message: `Non-admin users cannot assign tasks to admin users (${adminNames})`
+        });
+      }
+    }
+
     const taskData = {
       title,
       description,
@@ -172,7 +185,22 @@ const updateTask = async (req, res, next) => {
     if (dueDate) task.dueDate = dueDate;
     if (priority) task.priority = priority;
     if (assignedTo) {
-      task.assignedTo = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+      const newAssignees = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+
+      // RBAC: Non-admin users cannot assign tasks to admin users
+      if (req.user.role !== 'admin') {
+        const assignedUsers = await User.find({ _id: { $in: newAssignees } }).select('role name');
+        const adminAssignees = assignedUsers.filter(u => u.role === 'admin');
+        if (adminAssignees.length > 0) {
+          const adminNames = adminAssignees.map(u => u.name).join(', ');
+          return res.status(403).json({
+            success: false,
+            message: `Non-admin users cannot assign tasks to admin users (${adminNames})`
+          });
+        }
+      }
+
+      task.assignedTo = newAssignees;
     }
     if (isRecurring !== undefined) task.isRecurring = isRecurring;
     if (recurrence) task.recurrence = recurrence;

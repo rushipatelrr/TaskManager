@@ -46,8 +46,15 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
   }, [task, user._id]);
 
   useEffect(() => {
-    userService.getList().then(({ data }) => setUsers(data.users || [])).catch(() => { });
-  }, []);
+    userService.getList().then(({ data }) => {
+      let userList = data.users || [];
+      // Non-admin users can only see non-admin users in the assignment dropdown
+      if (user.role !== 'admin') {
+        userList = userList.filter(u => u.role !== 'admin');
+      }
+      setUsers(userList);
+    }).catch(() => { });
+  }, [user.role]);
 
   const handle = (e) => {
     const { name, value, type, checked } = e.target;

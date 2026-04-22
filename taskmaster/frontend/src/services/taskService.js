@@ -18,3 +18,11 @@ export const userService = {
   updateRole: (id, role) => api.patch(`/users/${id}/role`, { role }),
   toggleStatus: (id) => api.patch(`/users/${id}/toggle-status`),
 };
+
+export const adminService = {
+  getStats: () => api.get('/admin/stats'),
+  getUsers: (params) => api.get('/admin/users', { params }),
+  updateUserStatus: (id, isActive) => api.patch(`/admin/users/${id}/status`, { isActive }),
+  updateUserRole: (id, role) => api.patch(`/admin/users/${id}/role`, { role }),
+};
+
