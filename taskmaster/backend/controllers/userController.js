@@ -116,4 +116,21 @@ const getUserActivity = async (req, res, next) => {
   }
 };
 
-module.exports = { getAllUsers, getLeaderboard, updateUserRole, toggleUserStatus, getUserActivity };
+// @desc Get list of all users for assignment dropdown
+// @route GET /api/users/list
+const getUserList = async (req, res, next) => {
+  try {
+    const users = await User.find({ isActive: true })
+      .select('_id name email avatar role')
+      .sort({ name: 1 });
+
+    res.json({
+      success: true,
+      users
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getAllUsers, getLeaderboard, updateUserRole, toggleUserStatus, getUserActivity, getUserList };

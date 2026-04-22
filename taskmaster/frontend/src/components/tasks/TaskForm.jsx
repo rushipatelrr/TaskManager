@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/taskService';
 import { Spinner } from '../common';
+import MultiUserSelect from './MultiUserSelect';
 import toast from 'react-hot-toast';
 
 const defaultForm = {
@@ -10,7 +11,7 @@ const defaultForm = {
   description: '',
   dueDate: '',
   priority: 'medium',
-  assignedTo: '',
+  assignedTo: [],
   isRecurring: false,
   pointValue: 10,
   tags: '',
@@ -33,22 +34,20 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
         description: task.description || '',
         dueDate: task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : '',
         priority: task.priority || 'medium',
-        assignedTo: task.assignedTo?._id || task.assignedTo || '',
+        assignedTo: task.assignedTo ? task.assignedTo.map(u => u._id || u) : [],
         isRecurring: task.isRecurring || false,
         pointValue: task.pointValue || 10,
         tags: task.tags?.join(', ') || '',
         recurrence: task.recurrence || defaultForm.recurrence
       });
     } else {
-      setForm({ ...defaultForm, assignedTo: user._id });
+      setForm({ ...defaultForm, assignedTo: [user._id] });
     }
   }, [task, user._id]);
 
   useEffect(() => {
-    if (user.role === 'admin') {
-      userService.getAll({ limit: 100 }).then(({ data }) => setUsers(data.users || [])).catch(() => {});
-    }
-  }, [user.role]);
+    userService.getList().then(({ data }) => setUsers(data.users || [])).catch(() => { });
+  }, []);
 
   const handle = (e) => {
     const { name, value, type, checked } = e.target;
@@ -67,8 +66,12 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
     e.preventDefault();
     if (!form.title.trim()) return toast.error('Title is required');
 
+    // remove empty strings from assignedTo
+    const validAssignees = form.assignedTo.filter(id => id.trim() !== '');
+
     const payload = {
       ...form,
+      assignedTo: validAssignees,
       tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
       dueDate: form.dueDate || undefined,
       recurrence: form.isRecurring ? form.recurrence : undefined
@@ -117,18 +120,15 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
           <input type="number" name="pointValue" value={form.pointValue} onChange={handle} min="1" max="100" className="input" />
         </div>
 
-        {/* Assign To (admin) */}
-        {user.role === 'admin' && (
-          <div>
-            <label className="label">Assign To</label>
-            <select name="assignedTo" value={form.assignedTo} onChange={handle} className="input">
-              <option value="">Self</option>
-              {users.map(u => (
-                <option key={u._id} value={u._id}>{u.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* Assign To (Dynamic Multi-Select) */}
+        <div>
+          <label className="label">Assign To</label>
+          <MultiUserSelect
+            users={users}
+            selectedIds={form.assignedTo}
+            onChange={(ids) => setForm(prev => ({ ...prev, assignedTo: ids }))}
+          />
+        </div>
       </div>
 
       {/* Tags */}

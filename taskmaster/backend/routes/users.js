@@ -5,6 +5,7 @@ const { protect, adminOnly } = require('../middleware/auth');
 
 router.use(protect);
 
+router.get('/list', require('../controllers/userController').getUserList);
 router.get('/leaderboard', getLeaderboard);
 router.get('/activity/:id', getUserActivity);
 

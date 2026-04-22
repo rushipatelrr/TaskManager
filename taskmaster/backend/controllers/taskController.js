@@ -13,14 +13,27 @@ const getTasks = async (req, res, next) => {
       priority,
       search,
       assignedTo,
+      roleView,
       isRecurring
     } = req.query;
 
     const query = {};
 
-    // Admins see all, users see only their tasks
+    // Admins see all, users see tasks they are involved in
     if (req.user.role !== 'admin') {
-      query.assignedTo = req.user._id;
+      if (roleView === 'created') {
+        query.$or = [{ createdBy: req.user._id }, { assignedBy: req.user._id }];
+      } else if (roleView === 'assigned') {
+        query.assignedTo = req.user._id;
+      } else if (assignedTo) {
+        query.assignedTo = assignedTo;
+      } else {
+        query.$or = [
+          { assignedTo: req.user._id },
+          { assignedBy: req.user._id },
+          { createdBy: req.user._id }
+        ];
+      }
     } else if (assignedTo) {
       query.assignedTo = assignedTo;
     }
@@ -40,6 +53,7 @@ const getTasks = async (req, res, next) => {
 
     const tasks = await Task.find(query)
       .populate('assignedTo', 'name email avatar')
+      .populate('assignedBy', 'name email avatar')
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -66,6 +80,7 @@ const getTask = async (req, res, next) => {
   try {
     const task = await Task.findById(req.params.id)
       .populate('assignedTo', 'name email avatar')
+      .populate('assignedBy', 'name email avatar')
       .populate('createdBy', 'name email');
 
     if (!task) {
@@ -73,8 +88,13 @@ const getTask = async (req, res, next) => {
     }
 
     // Check access
-    if (req.user.role !== 'admin' && task.assignedTo?._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Access denied' });
+    if (req.user.role !== 'admin') {
+      const isAssignee = task.assignedTo.some(u => u._id.toString() === req.user._id.toString());
+      const isCreator = task.createdBy._id.toString() === req.user._id.toString();
+      const isAssignedBy = task.assignedBy?._id?.toString() === req.user._id.toString();
+      if (!isAssignee && !isCreator && !isAssignedBy) {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
     }
 
     res.json({ success: true, task });
@@ -89,13 +109,23 @@ const createTask = async (req, res, next) => {
   try {
     const { title, description, dueDate, priority, assignedTo, isRecurring, recurrence, pointValue, tags } = req.body;
 
+    let assignees = [];
+    if (Array.isArray(assignedTo)) {
+      assignees = assignedTo;
+    } else if (assignedTo) {
+      assignees = [assignedTo];
+    } else {
+      assignees = [req.user._id];
+    }
+
     const taskData = {
       title,
       description,
       dueDate,
       priority,
       createdBy: req.user._id,
-      assignedTo: assignedTo || req.user._id,
+      assignedBy: req.user._id,
+      assignedTo: assignees,
       isRecurring: isRecurring || false,
       pointValue: pointValue || 10,
       tags: tags || []
@@ -108,6 +138,7 @@ const createTask = async (req, res, next) => {
     const task = await Task.create(taskData);
     const populated = await task.populate([
       { path: 'assignedTo', select: 'name email avatar' },
+      { path: 'assignedBy', select: 'name email avatar' },
       { path: 'createdBy', select: 'name email' }
     ]);
 
@@ -128,7 +159,9 @@ const updateTask = async (req, res, next) => {
     }
 
     // Only admin or creator can update
-    if (req.user.role !== 'admin' && task.createdBy.toString() !== req.user._id.toString()) {
+    const isCreator = task.createdBy.toString() === req.user._id.toString();
+    const isAssignedBy = task.assignedBy?.toString() === req.user._id.toString();
+    if (req.user.role !== 'admin' && !isCreator && !isAssignedBy) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this task' });
     }
 
@@ -138,7 +171,9 @@ const updateTask = async (req, res, next) => {
     if (description !== undefined) task.description = description;
     if (dueDate) task.dueDate = dueDate;
     if (priority) task.priority = priority;
-    if (assignedTo) task.assignedTo = assignedTo;
+    if (assignedTo) {
+      task.assignedTo = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+    }
     if (isRecurring !== undefined) task.isRecurring = isRecurring;
     if (recurrence) task.recurrence = recurrence;
     if (pointValue) task.pointValue = pointValue;
@@ -148,6 +183,7 @@ const updateTask = async (req, res, next) => {
 
     const populated = await task.populate([
       { path: 'assignedTo', select: 'name email avatar' },
+      { path: 'assignedBy', select: 'name email avatar' },
       { path: 'createdBy', select: 'name email' }
     ]);
 
@@ -168,7 +204,7 @@ const toggleTaskStatus = async (req, res, next) => {
     }
 
     // Check access
-    if (req.user.role !== 'admin' && task.assignedTo?.toString() !== req.user._id.toString()) {
+    if (req.user.role !== 'admin' && !task.assignedTo.includes(req.user._id)) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -184,8 +220,10 @@ const toggleTaskStatus = async (req, res, next) => {
         task.pointsAwarded = true;
         const points = task.pointValue || 10;
 
+        const pointRecipient = task.assignedTo.includes(req.user._id) ? req.user._id : task.assignedTo[0] || req.user._id;
+
         await User.findByIdAndUpdate(
-          task.assignedTo || req.user._id,
+          pointRecipient,
           {
             $inc: { totalPoints: points },
             $push: {
@@ -209,6 +247,7 @@ const toggleTaskStatus = async (req, res, next) => {
 
     const populated = await task.populate([
       { path: 'assignedTo', select: 'name email avatar' },
+      { path: 'assignedBy', select: 'name email avatar' },
       { path: 'createdBy', select: 'name email' }
     ]);
 
@@ -228,7 +267,9 @@ const deleteTask = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
 
-    if (req.user.role !== 'admin' && task.createdBy.toString() !== req.user._id.toString()) {
+    const isCreator = task.createdBy.toString() === req.user._id.toString();
+    const isAssignedBy = task.assignedBy?.toString() === req.user._id.toString();
+    if (req.user.role !== 'admin' && !isCreator && !isAssignedBy) {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this task' });
     }
 

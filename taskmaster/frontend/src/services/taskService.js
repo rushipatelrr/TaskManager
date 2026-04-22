@@ -11,6 +11,7 @@ export const taskService = {
 };
 
 export const userService = {
+  getList: () => api.get('/users/list'),
   getAll: (params) => api.get('/users', { params }),
   getLeaderboard: () => api.get('/users/leaderboard'),
   getActivity: (id = 'me') => api.get(`/users/activity/${id}`),

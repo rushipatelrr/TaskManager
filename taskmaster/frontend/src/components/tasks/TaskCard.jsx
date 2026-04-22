@@ -5,14 +5,18 @@ import {
   RiDeleteBinLine, RiCalendarLine, RiRepeatLine, RiStarLine
 } from 'react-icons/ri';
 import { PriorityBadge, StatusBadge, ConfirmModal } from '../common';
+import { useAuth } from '../../context/AuthContext';
 
 export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
+  const { user } = useAuth();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [toggling, setToggling] = useState(false);
 
   const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== 'completed';
   const isCompleted = task.status === 'completed';
+
+  const canManage = user.role === 'admin' || task.createdBy?._id === user._id || task.createdBy === user._id || task.assignedBy?._id === user._id || task.assignedBy === user._id;
 
   const handleToggle = async () => {
     setToggling(true);
@@ -35,11 +39,10 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
           <button
             onClick={handleToggle}
             disabled={toggling}
-            className={`mt-0.5 flex-shrink-0 transition-colors duration-200 ${
-              isCompleted
-                ? 'text-emerald-500 hover:text-emerald-600'
-                : 'text-gray-300 hover:text-brand-500 dark:text-gray-600'
-            } disabled:opacity-50`}
+            className={`mt-0.5 flex-shrink-0 transition-colors duration-200 ${isCompleted
+              ? 'text-emerald-500 hover:text-emerald-600'
+              : 'text-gray-300 hover:text-brand-500 dark:text-gray-600'
+              } disabled:opacity-50`}
           >
             {isCompleted
               ? <RiCheckboxCircleLine className="w-6 h-6" />
@@ -54,20 +57,22 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
                 {task.title}
               </h3>
               {/* Actions */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => onEdit(task)}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-brand-600 transition-colors"
-                >
-                  <RiEditLine className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setConfirmOpen(true)}
-                  className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <RiDeleteBinLine className="w-4 h-4" />
-                </button>
-              </div>
+              {canManage && (
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => onEdit(task)}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-brand-600 transition-colors"
+                  >
+                    <RiEditLine className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setConfirmOpen(true)}
+                    className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <RiDeleteBinLine className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {task.description && (
@@ -102,16 +107,29 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
             </div>
 
             {/* Assigned to */}
-            {task.assignedTo && (
-              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
-                {task.assignedTo.avatar ? (
-                  <img src={task.assignedTo.avatar} className="w-5 h-5 rounded-full" alt="" />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-xs font-bold">
-                    {task.assignedTo.name?.[0]}
+            {task.assignedTo?.length > 0 && (
+              <div className="flex flex-col gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 dark:text-gray-500">Assigned to:</span>
+                  <div className="flex -space-x-1.5">
+                    {task.assignedTo.map(assignee => (
+                      <div key={assignee._id} className="relative group/avatar cursor-pointer" title={assignee.name}>
+                        {assignee.avatar ? (
+                          <img src={assignee.avatar} className="w-5 h-5 rounded-full border-2 border-white dark:border-gray-800" alt={assignee.name} />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border-2 border-white dark:border-gray-800 bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-[10px] font-bold">
+                            {assignee.name?.[0]}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {task.assignedBy && (
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Assigned by {task.assignedBy.name}
                   </div>
                 )}
-                <span className="text-xs text-gray-400 dark:text-gray-500">{task.assignedTo.name}</span>
               </div>
             )}
           </div>
