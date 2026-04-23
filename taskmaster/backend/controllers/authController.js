@@ -1,9 +1,15 @@
+const crypto = require('crypto');
 const { body } = require('express-validator');
 const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
+const { sendOTPEmail } = require('../utils/emailService');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const RESET_OTP_EXPIRY_MINUTES = 10;
+
+const generateResetOTP = () => crypto.randomInt(0, 1000000).toString().padStart(6, '0');
+const hashOTP = (otp) => crypto.createHash('sha256').update(String(otp)).digest('hex');
 
 // @desc Register user
 // @route POST /api/auth/register
@@ -150,6 +156,68 @@ const getMe = async (req, res) => {
   });
 };
 
+// @desc Request password reset OTP
+// @route POST /api/auth/forgot-password
+const forgotPassword = async (req, res, next) => {
+  try {
+    const normalizedEmail = req.body.email.toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail }).select('+resetOTP +resetOTPExpire');
+
+    if (user) {
+      const otp = generateResetOTP();
+
+      user.resetOTP = hashOTP(otp);
+      user.resetOTPExpire = new Date(Date.now() + RESET_OTP_EXPIRY_MINUTES * 60 * 1000);
+
+      await user.save({ validateBeforeSave: false });
+      await sendOTPEmail(user.email, otp);
+    }
+
+    res.json({
+      success: true,
+      message: 'If an account exists for that email, a reset OTP has been sent.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc Verify OTP and reset password
+// @route POST /api/auth/reset-password
+const resetPassword = async (req, res, next) => {
+  try {
+    const normalizedEmail = req.body.email.toLowerCase();
+    const { otp, newPassword } = req.body;
+
+    const user = await User.findOne({ email: normalizedEmail }).select('+resetOTP +resetOTPExpire');
+
+    if (!user || !user.resetOTP || !user.resetOTPExpire) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    if (user.resetOTPExpire < new Date()) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    if (user.resetOTP !== hashOTP(otp)) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    user.password = newPassword;
+    user.resetOTP = undefined;
+    user.resetOTPExpire = undefined;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password reset successful'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Validators
 const registerValidators = [
   body('name').trim().notEmpty().withMessage('Name is required'),
@@ -162,4 +230,25 @@ const loginValidators = [
   body('password').notEmpty().withMessage('Password is required')
 ];
 
-module.exports = { register, login, googleLogin, getMe, registerValidators, loginValidators };
+const forgotPasswordValidators = [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required')
+];
+
+const resetPasswordValidators = [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+  body('otp').matches(/^\d{6}$/).withMessage('OTP must be a 6-digit code'),
+  body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+];
+
+module.exports = {
+  register,
+  login,
+  googleLogin,
+  getMe,
+  forgotPassword,
+  resetPassword,
+  registerValidators,
+  loginValidators,
+  forgotPasswordValidators,
+  resetPasswordValidators
+};

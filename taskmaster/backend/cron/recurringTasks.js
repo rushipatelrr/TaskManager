@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const Task = require('../models/Task');
 const { getNextDate } = require('../utils/dateHelper');
+const { sendTaskEmail } = require('../utils/emailService');
 
 const startRecurringTaskCron = () => {
   const timezone = process.env.CRON_TIMEZONE || 'Asia/Kolkata';
@@ -8,25 +9,23 @@ const startRecurringTaskCron = () => {
   // Run every day at midnight (00:00) in configured timezone
   cron.schedule('0 0 * * *', async () => {
     const startTime = new Date();
-    console.log(`\n🕛 [CRON] Recurring task job started at ${startTime.toLocaleString('en-IN', { timeZone: timezone })}`);
+    console.log(`\n[CRON] Recurring task job started at ${startTime.toLocaleString('en-IN', { timeZone: timezone })}`);
 
     const now = new Date();
     try {
-      // Find eligible tasks:
-      // - isRecurring = true
-      // - status = completed
-      // - autoReassign = true
       const recurringTasks = await Task.find({
         isRecurring: true,
         status: 'completed',
         'recurrence.autoReassign': true,
         dueDate: { $lt: now }
-      });
+      })
+        .populate('assignedTo', 'name email avatar')
+        .populate('assignedBy', 'name email avatar');
 
-      console.log(`📋 [CRON] Found ${recurringTasks.length} recurring completed tasks`);
+      console.log(`[CRON] Found ${recurringTasks.length} recurring completed tasks`);
 
       if (recurringTasks.length === 0) {
-        console.log('✅ [CRON] No tasks to reassign.\n');
+        console.log('[CRON] No tasks to reassign.\n');
         return;
       }
 
@@ -36,54 +35,54 @@ const startRecurringTaskCron = () => {
 
       for (const task of recurringTasks) {
         try {
-          const now = new Date();
-          const lastCompleted = task.recurrence.lastCompletedAt || task.completedAt || now;
-
-          // Idempotency check: if already reset today, skip
+          const runTime = new Date();
           const todayStart = new Date();
           todayStart.setHours(0, 0, 0, 0);
 
-          if (task.recurrence.lastCompletedAt >= todayStart) {
-            console.log(`⏭️  [CRON] Task "${task.title}" already processed today — skipping`);
+          if (task.recurrence?.lastCompletedAt >= todayStart) {
+            console.log(`[CRON] Task "${task.title}" already processed today - skipping`);
             skipCount++;
             continue;
           }
 
-          // Calculate next due date
           const nextDueDate = getNextDate(
-            task.dueDate || now,
+            task.dueDate || runTime,
             task.recurrence.type,
             task.recurrence.interval || 1
           );
 
-          // Update task
-          await Task.findByIdAndUpdate(task._id, {
-            status: 'pending',
-            dueDate: nextDueDate,
-            pointsAwarded: false,    // Reset so points can be earned again
-            completedAt: undefined,
-            'recurrence.lastCompletedAt': now
-          });
+          task.status = 'pending';
+          task.dueDate = nextDueDate;
+          task.pointsAwarded = false;
+          task.completedAt = undefined;
+          task.recurrence.lastCompletedAt = runTime;
 
-          console.log(`✅ [CRON] Task "${task.title}" reset → pending | Next due: ${nextDueDate.toDateString()}`);
+          await task.save();
+
+          await Promise.all(
+            (task.assignedTo || [])
+              .filter((user) => user?.email)
+              .map((user) => sendTaskEmail(user.email, task, 'recurring'))
+          );
+
+          console.log(`[CRON] Task "${task.title}" reset -> pending | Next due: ${nextDueDate.toDateString()}`);
           successCount++;
         } catch (taskError) {
-          console.error(`❌ [CRON] Error processing task "${task.title}": ${taskError.message}`);
+          console.error(`[CRON] Error processing task "${task.title}": ${taskError.message}`);
           errors.push({ taskId: task._id, title: task.title, error: taskError.message });
         }
       }
 
       const duration = Date.now() - startTime.getTime();
-      console.log(`\n📊 [CRON] Summary: ${successCount} reset | ${skipCount} skipped | ${errors.length} errors | ${duration}ms\n`);
-
+      console.log(`\n[CRON] Summary: ${successCount} reset | ${skipCount} skipped | ${errors.length} errors | ${duration}ms\n`);
     } catch (error) {
-      console.error(`❌ [CRON] Fatal error in recurring task job: ${error.message}`);
+      console.error(`[CRON] Fatal error in recurring task job: ${error.message}`);
     }
   }, {
     timezone
   });
 
-  console.log(`⏰ Recurring task cron scheduled (timezone: ${timezone}) — runs daily at 00:00`);
+  console.log(`[CRON] Recurring task cron scheduled (timezone: ${timezone}) - runs daily at 00:00`);
 };
 
 module.exports = { startRecurringTaskCron };

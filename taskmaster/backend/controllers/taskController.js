@@ -1,6 +1,46 @@
 const { body } = require('express-validator');
 const Task = require('../models/Task');
 const User = require('../models/User');
+const { sendTaskEmail } = require('../utils/emailService');
+
+const taskPopulateOptions = [
+  { path: 'assignedTo', select: 'name email avatar' },
+  { path: 'assignedBy', select: 'name email avatar' },
+  { path: 'createdBy', select: 'name email' }
+];
+
+const normalizeAssigneeIds = (assignedTo, fallbackAssignee) => {
+  let assignees = [];
+
+  if (Array.isArray(assignedTo)) {
+    assignees = assignedTo;
+  } else if (assignedTo !== undefined && assignedTo !== null && assignedTo !== '') {
+    assignees = [assignedTo];
+  } else if (fallbackAssignee !== undefined) {
+    assignees = [fallbackAssignee];
+  }
+
+  return [...new Set(
+    assignees
+      .filter(Boolean)
+      .map((assignee) => (assignee._id ? assignee._id.toString() : assignee.toString()))
+  )];
+};
+
+const haveAssigneesChanged = (previousAssigneeIds, nextAssigneeIds) => {
+  if (previousAssigneeIds.length !== nextAssigneeIds.length) return true;
+
+  const nextAssigneeSet = new Set(nextAssigneeIds);
+  return previousAssigneeIds.some((assigneeId) => !nextAssigneeSet.has(assigneeId));
+};
+
+const notifyTaskUsers = async (users, task, type) => {
+  await Promise.all(
+    (users || [])
+      .filter((user) => user?.email)
+      .map((user) => sendTaskEmail(user.email, task, type))
+  );
+};
 
 // @desc Get tasks (with filtering, search, pagination)
 // @route GET /api/tasks
@@ -109,14 +149,7 @@ const createTask = async (req, res, next) => {
   try {
     const { title, description, dueDate, priority, assignedTo, isRecurring, recurrence, pointValue, tags } = req.body;
 
-    let assignees = [];
-    if (Array.isArray(assignedTo)) {
-      assignees = assignedTo;
-    } else if (assignedTo) {
-      assignees = [assignedTo];
-    } else {
-      assignees = [req.user._id];
-    }
+    const assignees = normalizeAssigneeIds(assignedTo, req.user._id);
 
     // RBAC: Non-admin users cannot assign tasks to admin users
     if (req.user.role !== 'admin' && assignees.length > 0) {
@@ -149,11 +182,9 @@ const createTask = async (req, res, next) => {
     }
 
     const task = await Task.create(taskData);
-    const populated = await task.populate([
-      { path: 'assignedTo', select: 'name email avatar' },
-      { path: 'assignedBy', select: 'name email avatar' },
-      { path: 'createdBy', select: 'name email' }
-    ]);
+    const populated = await task.populate(taskPopulateOptions);
+
+    await notifyTaskUsers(populated.assignedTo, populated, 'assigned');
 
     res.status(201).json({ success: true, message: 'Task created successfully', task: populated });
   } catch (error) {
@@ -179,13 +210,17 @@ const updateTask = async (req, res, next) => {
     }
 
     const { title, description, dueDate, priority, assignedTo, isRecurring, recurrence, pointValue, tags } = req.body;
+    const previousAssigneeIds = task.assignedTo.map((assignee) => assignee.toString());
+    let assigneesChanged = false;
 
     if (title) task.title = title;
     if (description !== undefined) task.description = description;
-    if (dueDate) task.dueDate = dueDate;
+    if (dueDate !== undefined) {
+      task.dueDate = dueDate === null ? undefined : dueDate;
+    }
     if (priority) task.priority = priority;
-    if (assignedTo) {
-      const newAssignees = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+    if (assignedTo !== undefined) {
+      const newAssignees = normalizeAssigneeIds(assignedTo);
 
       // RBAC: Non-admin users cannot assign tasks to admin users
       if (req.user.role !== 'admin') {
@@ -200,20 +235,39 @@ const updateTask = async (req, res, next) => {
         }
       }
 
+      assigneesChanged = haveAssigneesChanged(previousAssigneeIds, newAssignees);
       task.assignedTo = newAssignees;
+
+      if (assigneesChanged && task.status === 'completed') {
+        console.log(`[Task] Task ${task._id} reassigned from completed state. Resetting to pending.`);
+        task.status = 'pending';
+        task.completedAt = undefined;
+        task.pointsAwarded = false;
+
+        if (task.isRecurring && task.recurrence) {
+          const { getNextDate } = require('../utils/dateHelper');
+          task.dueDate = getNextDate(task.dueDate || new Date(), task.recurrence.type, task.recurrence.interval);
+          console.log(`[Task] Recurring task ${task._id} updated dueDate to ${task.dueDate}`);
+        }
+      }
     }
     if (isRecurring !== undefined) task.isRecurring = isRecurring;
-    if (recurrence) task.recurrence = recurrence;
-    if (pointValue) task.pointValue = pointValue;
-    if (tags) task.tags = tags;
+    if (recurrence !== undefined) task.recurrence = recurrence;
+    if (pointValue !== undefined) task.pointValue = pointValue;
+    if (tags !== undefined) task.tags = tags;
 
     await task.save();
 
-    const populated = await task.populate([
-      { path: 'assignedTo', select: 'name email avatar' },
-      { path: 'assignedBy', select: 'name email avatar' },
-      { path: 'createdBy', select: 'name email' }
-    ]);
+    const populated = await task.populate(taskPopulateOptions);
+
+    if (assigneesChanged) {
+      const previousAssigneeSet = new Set(previousAssigneeIds);
+      const newlyAssignedUsers = populated.assignedTo.filter(
+        (user) => !previousAssigneeSet.has(user._id.toString())
+      );
+
+      await notifyTaskUsers(newlyAssignedUsers, populated, 'reassigned');
+    }
 
     res.json({ success: true, message: 'Task updated successfully', task: populated });
   } catch (error) {
@@ -231,9 +285,11 @@ const toggleTaskStatus = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
 
-    // Check access
-    if (req.user.role !== 'admin' && !task.assignedTo.includes(req.user._id)) {
-      return res.status(403).json({ success: false, message: 'Access denied' });
+    // Only assigned user can complete task
+    const isAssignee = task.assignedTo.some(id => id.toString() === req.user._id.toString());
+    
+    if (!isAssignee) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
     const wasCompleted = task.status === 'completed';
@@ -266,9 +322,7 @@ const toggleTaskStatus = async (req, res, next) => {
         );
       }
     } else {
-      // Marking back to pending — do NOT deduct points, just reset status
-      task.status = 'pending';
-      task.completedAt = undefined;
+      return res.status(400).json({ success: false, message: 'Completed tasks cannot be reverted. They must be reassigned.' });
     }
 
     await task.save();

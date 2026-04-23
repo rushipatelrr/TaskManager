@@ -26,7 +26,9 @@ export default function TasksPage() {
         await createTask(data);
       }
       closeModal();
-    } catch { } finally {
+    } catch (error) {
+      console.error('Task form submission failed:', error);
+    } finally {
       setFormLoading(false);
     }
   };

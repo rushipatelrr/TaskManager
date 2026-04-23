@@ -13,9 +13,11 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
   const [deleting, setDeleting] = useState(false);
   const [toggling, setToggling] = useState(false);
 
-  const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== 'completed';
+  const localDueDate = task.dueDate ? new Date(task.dueDate.split('T')[0].split('-')[0], task.dueDate.split('T')[0].split('-')[1] - 1, task.dueDate.split('T')[0].split('-')[2]) : null;
+  const isOverdue = localDueDate && isPast(localDueDate) && task.status !== 'completed';
   const isCompleted = task.status === 'completed';
 
+  const isAssignee = task.assignedTo?.some(assignee => (assignee._id || assignee).toString() === user._id.toString());
   const canManage = user.role === 'admin' || task.createdBy?._id === user._id || task.createdBy === user._id || task.assignedBy?._id === user._id || task.assignedBy === user._id;
 
   const handleToggle = async () => {
@@ -37,11 +39,17 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
         <div className="flex items-start gap-3">
           {/* Toggle button */}
           <button
+            type="button"
+            role="checkbox"
+            aria-checked={isCompleted}
             onClick={handleToggle}
-            disabled={toggling}
+            disabled={toggling || isCompleted || !isAssignee}
+            title={isCompleted ? "Completed tasks cannot be reverted" : !isAssignee ? "Only assigned users can complete this task" : ""}
             className={`mt-0.5 flex-shrink-0 transition-colors duration-200 ${isCompleted
-              ? 'text-emerald-500 hover:text-emerald-600'
-              : 'text-gray-300 hover:text-brand-500 dark:text-gray-600'
+              ? 'text-emerald-500 cursor-not-allowed'
+              : !isAssignee
+                ? 'text-gray-200 cursor-not-allowed dark:text-gray-700'
+                : 'text-gray-300 hover:text-brand-500 dark:text-gray-600'
               } disabled:opacity-50`}
           >
             {isCompleted
@@ -86,7 +94,7 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete }) {
               {task.dueDate && (
                 <span className={`badge ${isOverdue ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
                   <RiCalendarLine className="w-3 h-3 mr-1 inline" />
-                  {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                  {format(localDueDate, 'MMM d, yyyy')}
                   {isOverdue && ' · Overdue'}
                 </span>
               )}

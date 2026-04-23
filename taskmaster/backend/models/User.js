@@ -17,7 +17,9 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
   totalPoints: { type: Number, default: 0 },
   pointHistory: [pointHistorySchema],
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  resetOTP: { type: String, select: false },
+  resetOTPExpire: { type: Date, select: false }
 }, { timestamps: true });
 
 userSchema.pre('save', async function(next) {

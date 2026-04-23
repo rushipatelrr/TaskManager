@@ -32,7 +32,7 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
       setForm({
         title: task.title || '',
         description: task.description || '',
-        dueDate: task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : '',
+        dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
         priority: task.priority || 'medium',
         assignedTo: task.assignedTo ? task.assignedTo.map(u => u._id || u) : [],
         isRecurring: task.isRecurring || false,
@@ -53,7 +53,10 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
         userList = userList.filter(u => u.role !== 'admin');
       }
       setUsers(userList);
-    }).catch(() => { });
+    }).catch((err) => {
+      console.error('Failed to fetch users:', err);
+      toast.error('Failed to load user list');
+    });
   }, [user.role]);
 
   const handle = (e) => {
@@ -80,7 +83,7 @@ export default function TaskForm({ task, onSubmit, onCancel, loading }) {
       ...form,
       assignedTo: validAssignees,
       tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      dueDate: form.dueDate || undefined,
+      dueDate: form.dueDate || null,
       recurrence: form.isRecurring ? form.recurrence : undefined
     };
 
