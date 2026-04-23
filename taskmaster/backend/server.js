@@ -13,6 +13,12 @@ const app = express();
 // Connect to MongoDB & seed default admin
 connectDB().then(() => seedAdmin());
 
+// Debug Logging
+app.use((req, res, next) => {
+  console.log("Request Origin:", req.headers.origin);
+  next();
+});
+
 // CORS
 const allowedOrigins = [
   "http://localhost:5173",
@@ -24,11 +30,14 @@ if (process.env.CLIENT_URL) {
 }
 
 app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like Postman or mobile apps)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error("CORS not allowed"));
+      callback(new Error(`CORS not allowed for origin: ${origin}`));
     }
   },
   credentials: true,
