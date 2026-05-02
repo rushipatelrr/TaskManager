@@ -19,7 +19,10 @@ const getTransporter = () => {
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-      }
+      },
+      // Enable logging and debugging based on environment variables for easier troubleshooting
+      logger: process.env.DEBUG_EMAIL === 'true',
+      debug: process.env.DEBUG_EMAIL === 'true'
     });
   }
 
@@ -28,19 +31,25 @@ const getTransporter = () => {
 
 const sendEmail = async ({ to, subject, text }) => {
   const mailer = getTransporter();
-  if (!mailer) return false;
+  if (!mailer) {
+    console.error(`[Email Service] Cannot send email to ${to}: SMTP Transporter not configured.`);
+    return false;
+  }
 
   try {
-    await mailer.sendMail({
+    console.log(`[Email Service] Attempting to send email to: ${to} (Subject: ${subject})`);
+    
+    const info = await mailer.sendMail({
       from: process.env.EMAIL_USER,
       to,
       subject,
       text
     });
 
+    console.log(`[Email Service] Email sent successfully to ${to}. MessageId: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error(`Email send failed for ${to}: ${error.message}`);
+    console.error(`[Email Service] Email send failed for ${to}. Full Error:`, error);
     return false;
   }
 };

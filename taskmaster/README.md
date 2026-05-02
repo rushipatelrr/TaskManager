@@ -210,7 +210,7 @@ CRON_TIMEZONE=Asia/Kolkata   # or America/New_York, Europe/London, etc.
 
 ---
 
-## 🌍 Timezone Support
+## Timezone Support
 
 To find your timezone string:
 ```bash
@@ -226,27 +226,24 @@ Common timezones:
 
 ---
 
-## 📦 Tech Stack
+## Tech Stack
 
 **Backend:** Node.js, Express, MongoDB, Mongoose, JWT, bcrypt, node-cron, google-auth-library  
 **Frontend:** React 18, Vite, Tailwind CSS, React Router v6, Axios, react-hot-toast, react-icons, date-fns
 
 ---
 
-## 🚢 Deployment
+## Deployment
 
-### Backend (Railway / Render)
+### Backend (Render)
 1. Set all `.env` variables in dashboard
 2. Set `NODE_ENV=production`
 3. Deploy from GitHub
 
-### Frontend (Vercel / Netlify)
+### Frontend (Netlify)
 1. Set `VITE_GOOGLE_CLIENT_ID` in environment
 2. Update `CLIENT_URL` in backend `.env` to production URL
 3. Build: `npm run build`
 
 ---
 
-## 📝 License
-
-MIT

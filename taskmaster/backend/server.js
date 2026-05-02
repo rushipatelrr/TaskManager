@@ -60,6 +60,29 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'TaskMaster API running', timestamp: new Date() });
 });
 
+// Email test route for debugging SMTP configuration
+app.post('/api/test-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Please provide an email address in the request body to test.' });
+    }
+    
+    // We import sendOTPEmail just for testing since it requires simple parameters
+    const { sendOTPEmail } = require('./utils/emailService');
+    const result = await sendOTPEmail(email, '123456');
+    
+    if (result) {
+      res.json({ success: true, message: `Test email successfully sent to ${email}. Check the console for detailed logs.` });
+    } else {
+      res.status(500).json({ success: false, message: 'Failed to send test email. Check the server console for the exact error.' });
+    }
+  } catch (error) {
+    console.error('Test email route error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // 404
 app.use('*', (req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
