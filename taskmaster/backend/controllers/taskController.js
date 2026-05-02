@@ -184,7 +184,10 @@ const createTask = async (req, res, next) => {
     const task = await Task.create(taskData);
     const populated = await task.populate(taskPopulateOptions);
 
-    await notifyTaskUsers(populated.assignedTo, populated, 'assigned');
+    // Fire and forget: offload email sending to background to prevent blocking response
+    notifyTaskUsers(populated.assignedTo, populated, 'assigned').catch(err => {
+      console.error(`[Background Task] Failed to send assignment emails for task ${task._id}:`, err);
+    });
 
     res.status(201).json({ success: true, message: 'Task created successfully', task: populated });
   } catch (error) {
@@ -266,7 +269,10 @@ const updateTask = async (req, res, next) => {
         (user) => !previousAssigneeSet.has(user._id.toString())
       );
 
-      await notifyTaskUsers(newlyAssignedUsers, populated, 'reassigned');
+      // Fire and forget: offload email sending to background
+      notifyTaskUsers(newlyAssignedUsers, populated, 'reassigned').catch(err => {
+        console.error(`[Background Task] Failed to send reassignment emails for task ${task._id}:`, err);
+      });
     }
 
     res.json({ success: true, message: 'Task updated successfully', task: populated });

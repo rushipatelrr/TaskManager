@@ -11,7 +11,12 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.message || 'Something went wrong';
+    let message = error.response?.data?.message || 'Something went wrong';
+
+    if (error.code === 'ECONNABORTED') {
+      message = 'Request timed out. The operation may have still completed in the background.';
+      toast.error(message);
+    }
 
     // Don't show toast for 401 on /auth/me (silent refresh)
     if (error.response?.status === 401 && !error.config?.url?.includes('/auth/me')) {
