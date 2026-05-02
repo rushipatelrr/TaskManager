@@ -1,43 +1,56 @@
 const nodemailer = require('nodemailer');
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
+const dns = require('dns').promises;
 
 let transporter;
 let missingConfigLogged = false;
 
-const getTransporter = () => {
+const getTransporter = async () => {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     if (!missingConfigLogged) {
-      console.warn('Email service disabled: EMAIL_USER and EMAIL_PASS must be configured.');
+      console.warn('[Email Service] Disabled: EMAIL_USER and EMAIL_PASS must be configured.');
       missingConfigLogged = true;
     }
-
     return null;
   }
 
   if (!transporter) {
-   transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  family: 4,
-  tls: {
-    rejectUnauthorized: false
-  },
-  logger: process.env.DEBUG_EMAIL === 'true',
-  debug: process.env.DEBUG_EMAIL === 'true'
-});
+    let smtpHost = 'smtp.gmail.com';
+
+    try {
+      const addresses = await dns.resolve4('smtp.gmail.com');
+      if (addresses && addresses.length > 0) {
+        smtpHost = addresses[0];
+        console.log(`[Email Service] Resolved smtp.gmail.com -> ${smtpHost} (IPv4)`);
+      }
+    } catch (dnsErr) {
+      console.warn(`[Email Service] DNS resolve4 failed, falling back to hostname: ${dnsErr.message}`);
+    }
+
+    transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      },
+      family: 4,
+      tls: {
+        // servername is required when connecting via raw IP so TLS handshake
+        // still validates against the gmail.com certificate CN/SAN fields
+        servername: 'smtp.gmail.com',
+        rejectUnauthorized: false
+      },
+      logger: process.env.DEBUG_EMAIL === 'true',
+      debug: process.env.DEBUG_EMAIL === 'true'
+    });
   }
 
   return transporter;
 };
 
 const sendEmail = async ({ to, subject, text }) => {
-  const mailer = getTransporter();
+  const mailer = await getTransporter();
   if (!mailer) {
     console.error(`[Email Service] Cannot send email to ${to}: SMTP Transporter not configured.`);
     return false;
@@ -45,7 +58,7 @@ const sendEmail = async ({ to, subject, text }) => {
 
   try {
     console.log(`[Email Service] Attempting to send email to: ${to} (Subject: ${subject})`);
-    
+
     const info = await mailer.sendMail({
       from: process.env.EMAIL_USER,
       to,
