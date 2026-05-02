@@ -28,6 +28,7 @@ const getTransporter = () => {
   tls: {
     rejectUnauthorized: false
   },
+  localAddress: '0.0.0.0', // Force IPv4 connection to bypass IPv6 ENETUNREACH errors
   logger: process.env.DEBUG_EMAIL === 'true',
   debug: process.env.DEBUG_EMAIL === 'true'
 });
