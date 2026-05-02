@@ -11,8 +11,6 @@ const RESET_OTP_EXPIRY_MINUTES = 10;
 const generateResetOTP = () => crypto.randomInt(0, 1000000).toString().padStart(6, '0');
 const hashOTP = (otp) => crypto.createHash('sha256').update(String(otp)).digest('hex');
 
-// @desc Register user
-// @route POST /api/auth/register
 const register = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
@@ -50,8 +48,6 @@ const register = async (req, res, next) => {
   }
 };
 
-// @desc Login user
-// @route POST /api/auth/login
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -90,8 +86,6 @@ const login = async (req, res, next) => {
   }
 };
 
-// @desc Google OAuth login
-// @route POST /api/auth/google
 const googleLogin = async (req, res, next) => {
   try {
     const { credential } = req.body;
@@ -139,8 +133,6 @@ const googleLogin = async (req, res, next) => {
   }
 };
 
-// @desc Get current user
-// @route GET /api/auth/me
 const getMe = async (req, res) => {
   res.json({
     success: true,
@@ -156,8 +148,6 @@ const getMe = async (req, res) => {
   });
 };
 
-// @desc Request password reset OTP
-// @route POST /api/auth/forgot-password
 const forgotPassword = async (req, res, next) => {
   try {
     const normalizedEmail = req.body.email.toLowerCase();
@@ -182,8 +172,6 @@ const forgotPassword = async (req, res, next) => {
   }
 };
 
-// @desc Verify OTP and reset password
-// @route POST /api/auth/reset-password
 const resetPassword = async (req, res, next) => {
   try {
     const normalizedEmail = req.body.email.toLowerCase();

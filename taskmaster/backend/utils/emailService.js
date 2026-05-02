@@ -14,16 +14,20 @@ const getTransporter = () => {
   }
 
   if (!transporter) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      // Enable logging and debugging based on environment variables for easier troubleshooting
-      logger: process.env.DEBUG_EMAIL === 'true',
-      debug: process.env.DEBUG_EMAIL === 'true'
-    });
+   transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+  tls: {
+    rejectUnauthorized: false
+  },
+  logger: process.env.DEBUG_EMAIL === 'true',
+  debug: process.env.DEBUG_EMAIL === 'true'
+});
   }
 
   return transporter;
@@ -67,8 +71,6 @@ const formatDueDate = (dueDate) => {
     parsedDate.getUTCMilliseconds() === 0
   );
 
-  // Date-only values are treated as end-of-day in email copy so they read naturally
-  // while keeping the stored DB value and cron logic unchanged.
   if (isDateOnlyMidnightUtc) {
     const displayDate = new Intl.DateTimeFormat('en-IN', {
       dateStyle: 'medium',

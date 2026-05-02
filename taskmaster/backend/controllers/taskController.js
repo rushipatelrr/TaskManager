@@ -42,8 +42,6 @@ const notifyTaskUsers = async (users, task, type) => {
   );
 };
 
-// @desc Get tasks (with filtering, search, pagination)
-// @route GET /api/tasks
 const getTasks = async (req, res, next) => {
   try {
     const {
@@ -114,8 +112,6 @@ const getTasks = async (req, res, next) => {
   }
 };
 
-// @desc Get single task
-// @route GET /api/tasks/:id
 const getTask = async (req, res, next) => {
   try {
     const task = await Task.findById(req.params.id)
@@ -143,8 +139,6 @@ const getTask = async (req, res, next) => {
   }
 };
 
-// @desc Create task
-// @route POST /api/tasks
 const createTask = async (req, res, next) => {
   try {
     const { title, description, dueDate, priority, assignedTo, isRecurring, recurrence, pointValue, tags } = req.body;
@@ -195,8 +189,6 @@ const createTask = async (req, res, next) => {
   }
 };
 
-// @desc Update task
-// @route PUT /api/tasks/:id
 const updateTask = async (req, res, next) => {
   try {
     const task = await Task.findById(req.params.id);
@@ -281,8 +273,6 @@ const updateTask = async (req, res, next) => {
   }
 };
 
-// @desc Toggle task status (complete/pending) with points logic
-// @route PATCH /api/tasks/:id/toggle
 const toggleTaskStatus = async (req, res, next) => {
   try {
     const task = await Task.findById(req.params.id);
@@ -345,8 +335,6 @@ const toggleTaskStatus = async (req, res, next) => {
   }
 };
 
-// @desc Delete task
-// @route DELETE /api/tasks/:id
 const deleteTask = async (req, res, next) => {
   try {
     const task = await Task.findById(req.params.id);
@@ -368,8 +356,6 @@ const deleteTask = async (req, res, next) => {
   }
 };
 
-// @desc Get dashboard stats
-// @route GET /api/tasks/stats
 const getStats = async (req, res, next) => {
   try {
     const userId = req.user._id;

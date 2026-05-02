@@ -1,7 +1,4 @@
-/**
- * Calculate the next due date for a recurring task.
- * Handles edge cases: monthly overflow, leap year, etc.
- */
+
 const getNextDate = (currentDate, recurrenceType, interval = 1) => {
   const date = new Date(currentDate);
 
@@ -18,9 +15,8 @@ const getNextDate = (currentDate, recurrenceType, interval = 1) => {
       const originalDay = date.getDate();
       date.setMonth(date.getMonth() + interval);
 
-      // Handle month overflow (e.g., Jan 31 + 1 month → Feb 28/29)
       if (date.getDate() !== originalDay) {
-        date.setDate(0); // Go to last day of previous month
+        date.setDate(0); 
       }
       break;
     }

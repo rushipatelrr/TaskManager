@@ -1,8 +1,7 @@
 const User = require('../models/User');
 const Task = require('../models/Task');
 
-// @desc Get all users (admin only) with search, filter, pagination
-// @route GET /api/admin/users
+
 const getAllUsers = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search, role, status } = req.query;
@@ -58,8 +57,6 @@ const getAllUsers = async (req, res, next) => {
   }
 };
 
-// @desc Update user status (activate/deactivate)
-// @route PATCH /api/admin/users/:id/status
 const updateUserStatus = async (req, res, next) => {
   try {
     const { isActive } = req.body;
@@ -99,8 +96,6 @@ const updateUserStatus = async (req, res, next) => {
   }
 };
 
-// @desc Update user role (promote/demote)
-// @route PATCH /api/admin/users/:id/role
 const updateUserRole = async (req, res, next) => {
   try {
     const { role } = req.body;
@@ -130,8 +125,6 @@ const updateUserRole = async (req, res, next) => {
   }
 };
 
-// @desc Get admin dashboard stats (users + tasks overview)
-// @route GET /api/admin/stats
 const getAdminStats = async (req, res, next) => {
   try {
     const [

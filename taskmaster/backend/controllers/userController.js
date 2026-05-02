@@ -1,8 +1,6 @@
 const User = require('../models/User');
 const Task = require('../models/Task');
 
-// @desc Get all users (admin)
-// @route GET /api/users
 const getAllUsers = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search } = req.query;
@@ -34,8 +32,6 @@ const getAllUsers = async (req, res, next) => {
   }
 };
 
-// @desc Get leaderboard
-// @route GET /api/users/leaderboard
 const getLeaderboard = async (req, res, next) => {
   try {
     const users = await User.find({ isActive: true })
@@ -49,8 +45,6 @@ const getLeaderboard = async (req, res, next) => {
   }
 };
 
-// @desc Update user role (admin)
-// @route PATCH /api/users/:id/role
 const updateUserRole = async (req, res, next) => {
   try {
     const { role } = req.body;
@@ -72,8 +66,6 @@ const updateUserRole = async (req, res, next) => {
   }
 };
 
-// @desc Toggle user active status (admin)
-// @route PATCH /api/users/:id/toggle-status
 const toggleUserStatus = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
@@ -88,8 +80,6 @@ const toggleUserStatus = async (req, res, next) => {
   }
 };
 
-// @desc Get user activity/point history
-// @route GET /api/users/:id/activity
 const getUserActivity = async (req, res, next) => {
   try {
     const targetId = req.params.id === 'me' ? req.user._id : req.params.id;
@@ -116,8 +106,6 @@ const getUserActivity = async (req, res, next) => {
   }
 };
 
-// @desc Get list of all users for assignment dropdown
-// @route GET /api/users/list
 const getUserList = async (req, res, next) => {
   try {
     const users = await User.find({ isActive: true })
